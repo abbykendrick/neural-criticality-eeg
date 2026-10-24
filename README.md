@@ -1,170 +1,119 @@
-# neural-criticality-eeg
-# Neural Criticality Engineering: Quantifying Phase Transitions and Fractal Geometry in EEG Time-Series
+# Neural Criticality in EEG: Fractal Dimension and Entropy Across Brain-State Transitions
+
+A Python pipeline that measures how the geometric complexity and information content of an EEG signal change when the brain moves between states, such as from a stressed, high-beta state to a calm, alpha-dominant one.
 
 ## 1. Research Objectives
-This repository houses an open-source computational neuroscience pipeline written in Python. The system provides a mathematical model for tracking how the brain transitions between states of high-entropy noise (stress/anxiety) and high-order phase synchronization (deep meditation/altered states). 
 
-Traditional neurological paradigms look at the brain as a mechanical machine and treat EEG bands as flat, static frequencies. This project implements a **Nonlinear Dynamical Systems approach**, modeling the central nervous system as a complex network operating on the thermodynamic boundary between order and chaos—a state known as **criticality**. It demonstrates that external, coherent geometric inputs (such as sound frequencies or focused intent) actively collapse information chaos, reorganizing the body's primary bioelectric macro-programmer.
+Many analyses treat EEG frequency bands as fixed, independent signals. This project takes a **nonlinear dynamical systems** view instead. It models the nervous system as a complex network that may operate near **criticality**, the boundary between ordered and disordered dynamics.
+
+The pipeline is built to test one working hypothesis:
+
+> **Hypothesis.** When neural activity shifts from a stressed, noisy state to a coherent, rhythmic one (as reported during deep meditation), the signal's fractal dimension should decrease, reflecting a move toward a more ordered attractor.
+
+Related questions this framework could support, but does not yet test:
+
+- Whether coherent external inputs, such as sound at specific frequencies or focused attention, can drive that shift.
+- How strongly each metric tracks self-reported or behaviorally measured states.
+
+The current version demonstrates the method on synthetic data. Testing the hypothesis requires real recordings (see [Limitations](#6-limitations-and-next-steps)).
 
 ## 2. Mathematical Foundations
 
 ### A. Higuchi's Fractal Dimension (HFD)
-To measure the change in geometric complexity of the neural time-series data without losing scale-invariant information, the algorithm hand-codes **Higuchi's Fractal Dimension**. Given an EEG time-series $X(1), X(2), \dots, X(N)$, the algorithm constructs sub-time series with time-scale interval $k$:
 
-$$X_m^k = \{X(m), X(m+k), X(m+2k), \dots, X(m + \lfloor \frac{N-m}{k} \rfloor \cdot k)\}$$
+HFD measures the geometric complexity of a time series without discarding scale-invariant information ([Higuchi, 1988](#references)). For an EEG series $X(1), X(2), \dots, X(N)$, the algorithm builds sub-series at interval $k$:
 
-The normalized curve length $L_m(k)$ is calculated for each sub-series, and the total curve length for time-step $k$ scales according to a power law:
+$$X_m^k = \{X(m), X(m+k), X(m+2k), \dots, X(m + \lfloor \tfrac{N-m}{k} \rfloor \cdot k)\}$$
+
+It computes the normalized curve length $L_m(k)$ for each sub-series. The mean curve length follows a power law:
 
 $$\langle L(k) \rangle \propto k^{-D}$$
 
-Where $D$ represents the fractal dimension. A value approaching $2.0$ represents absolute chaotic white noise, while a drop toward $1.0$ mathematically signifies that the network has locked onto a clean, geometric, self-similar attractor rhythm.
+$D$ is the fractal dimension. Values near **2.0** indicate white-noise-like irregularity. Values near **1.0** indicate a smooth, regular signal, such as a clean rhythm.
 
-### B. Information Entropy
-To track the unpredictability and data density within the neural information field, we apply **Shannon Entropy** to the isolated signal distributions:
+### B. Shannon Entropy
+
+Shannon entropy measures how unpredictable the distribution of signal amplitudes is ([Shannon, 1948](#references)):
 
 $$H(X) = -\sum_{i=1}^{n} P(x_i) \log_2 P(x_i)$$
 
-Where $P(x_i)$ is the probability density of the voltage amplitudes. Higher bits signify an uncoupled system processing uncorrelated noise, whereas a sharp reduction in bits quantifies a state update where the network has condensed its processing channels into a unified harmonic script.
+$P(x_i)$ is the estimated probability of amplitude bin $x_i$. Higher entropy means amplitudes are spread more evenly across the range. Lower entropy means they concentrate in fewer bins.
 
-## 3. Computational Architecture & Pipelines
-*   `NeuralCriticalityPipeline`: Main pipeline object handling ingestion, multi-channel processing, and data visualization.
-*   `load_synthetic_or_real_data`: Supports high-fidelity scientific ingestion of `.edf` or `.fif` files via **MNE-Python**. If no path is active, it constructs a synthetic matrix mapping an immediate state-shift from 1/f pink noise to an 8Hz Alpha sine wave.
-*   `apply_butterworth_filter`: Isolates target data bandwidths using a zero-phase forward-backward digital Butterworth bandpass filter (`scipy.signal.filtfilt`), preventing phase distortion.
-*   `_render_phase_space_plots`: Maps a 2D time-delay embedding ($x(t)$ versus $x(t + \delta)$) to visually plot the physical collapse of chaotic noise into a geometric fractal attractor.
+Note that this measures the *distribution* of amplitudes, not their order in time. A perfectly regular sine wave spends most of its time near its peaks, which spreads its amplitudes across the range and can give it higher entropy than noise. See [Results](#5-results-on-synthetic-data).
 
-## 4. Execution & System Requirements
-Ensure scientific programming packages are updated in your environment:
+## 3. Pipeline Architecture
+
+| Component | Purpose |
+| --- | --- |
+| `NeuralCriticalityPipeline` | Main class: loads data, processes channels, and plots results. |
+| `load_synthetic_or_real_data` | Loads an `.edf` recording through [MNE-Python](https://mne.tools). With no file, it generates a synthetic signal (see below). |
+| `apply_butterworth_filter` | Zero-phase Butterworth band-pass filter (`scipy.signal.filtfilt`), which avoids phase distortion. |
+| `calculate_higuchi_fractal_dimension` | Computes HFD (default `k_max = 10`). |
+| `calculate_shannon_entropy` | Computes entropy in bits from a 30-bin amplitude histogram. |
+| `process_criticality_transition` | Splits a channel into two halves, filters each, and computes both metrics. |
+| `_render_phase_space_plots` | Plots a 2D time-delay embedding, $x(t)$ against $x(t+\delta)$, for each state. |
+
+### Synthetic data
+
+When no file is provided, the pipeline builds a 12-second, 4-channel signal at 160 Hz:
+
+- **First half (stress model):** Gaussian noise plus a 25 Hz beta component.
+- **Second half (coherence model):** an 8 Hz alpha sine wave plus low-amplitude noise.
+
+The first half is band-passed at 20–30 Hz and the second at 4–12 Hz before the metrics are computed.
+
+## 4. Installation and Usage
+
+Requires Python 3.9 or later.
+
 ```bash
 pip install numpy scipy matplotlib mne
 python neural_criticality_pipeline.py
 ```
----
 
-# PART 3: PROJECT B (MORPHOGENETIC FIELDS & TISSUE CA)
+To analyze a real recording, pass an EDF file path:
 
-### File: `bioelectric_tissue_sim.py`
 ```python
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
+from neural_criticality_pipeline import NeuralCriticalityPipeline
 
-class BioelectricTissueSimulator:
-    """
-    A continuous bioelectric cellular automaton modeling morphogenetic field repair,
-    simulating gap junction voltage diffusion and anatomical memory restoration.
-    """
-    def __init__(self, grid_size: int = 50, diffusion_rate: float = 0.15):
-        self.grid_size = grid_size
-        self.dt = diffusion_rate
-        
-        # Initialize tissue layers
-        self.v_mem = np.zeros((grid_size, grid_size)) 
-        self.target_morphology = np.zeros((grid_size, grid_size)) 
-        self.cellular_identity = np.ones((grid_size, grid_size)) 
-        
-        self._initialize_target_geometry()
-
-    def _initialize_target_geometry(self):
-        """
-        Defines the global morphogenetic target memory template. 
-        Models a distinct structural 'organ' in the center of the bioelectric field.
-        """
-        pad = self.grid_size // 4
-        self.target_morphology[pad:-pad, pad:-pad] = 1.0
-        self.v_mem = np.copy(self.target_morphology) * -70.0 # Target -70mV resting potential
-
-    def execute_amputation(self, start_xy: tuple, end_xy: tuple):
-        """
-        Simulates a severe mechanical injury or tissue amputation.
-        Severely alters local bioelectric communication by destroying cellular nodes.
-        """
-        x1, y1 = start_xy
-        x2, y2 = end_xy
-        print(f"[INJURY EVENT] Amputating tissue slice from coordinate ({x1},{y1}) to ({x2},{y2}).")
-        
-        self.cellular_identity[x1:x2, y1:y2] = 0.0
-        self.v_mem[x1:x2, y1:y2] = 0.0 
-
-    def update_bioelectric_step(self):
-        """
-        Executes one clock cycle of intercellular gap junction diffusion 
-        and top-down bioelectric error-gradient correction loops.
-        """
-        next_v = np.copy(self.v_mem)
-        
-        # 1. Simulate Intercellular Gap Junction Diffusion (Discrete Laplacian computation)
-        for x in range(1, self.grid_size - 1):
-            for y in range(1, self.grid_size - 1):
-                if self.cellular_identity[x, y] == 1.0: 
-                    laplacian = (self.v_mem[x+1, y] + self.v_mem[x-1, y] + 
-                                 self.v_mem[x, y+1] + self.v_mem[x, y-1] - 4 * self.v_mem[x, y])
-                    next_v[x, y] += self.dt * laplacian
-        
-        # 2. Compute the Local-to-Global Morphogenetic Error Gradient
-        for x in range(1, self.grid_size - 1):
-            for y in range(1, self.grid_size - 1):
-                if self.cellular_identity[x, y] == 0.0: 
-                    neighbor_voltage_sum = (self.v_mem[x+1, y] + self.v_mem[x-1, y] + 
-                                            self.v_mem[x, y+1] + self.v_mem[x, y-1])
-                    
-                    if neighbor_voltage_sum < -35.0: 
-                        self.cellular_identity[x, y] = 1.0
-                        next_v[x, y] = -70.0 
-
-        self.v_mem = next_v
-
-    def run_simulation_animation(self, total_steps: int = 120):
-        """
-        Renders the active simulation, tracking the dynamic transformation
-        from injury through collective morphogenetic self-repair.
-        """
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-        
-        im_volts = ax1.imshow(self.v_mem, cmap='viridis', origin='lower', vmin=-70, vmax=0)
-        ax1.set_title("Tissue Bioelectric Profile ($V_{mem}$)")
-        fig.colorbar(im_volts, ax=ax1, label="Membrane Potential (mV)")
-        
-        im_morph = ax2.imshow(self.cellular_identity, cmap='bone', origin='lower', vmin=0, vmax=1)
-        ax2.set_title("Anatomical Tissue Geometry")
-        
-        def animate(frame):
-            self.update_bioelectric_step()
-            im_volts.set_array(self.v_mem)
-            im_morph.set_array(self.cellular_identity)
-            return [im_volts, im_morph]
-
-        ani = animation.FuncAnimation(fig, animate, frames=total_steps, interval=50, blit=True, repeat=False)
-        plt.tight_layout()
-        plt.show()
-
-if __name__ == "__main__":
-    tissue = BioelectricTissueSimulator(grid_size=60, diffusion_rate=0.2)
-    tissue.execute_amputation(start_xy=(25, 25), end_xy=(42, 42))
-    tissue.run_simulation_animation(total_steps=100)
+pipeline = NeuralCriticalityPipeline(file_path="recording.edf")
+pipeline.load_synthetic_or_real_data(num_channels=4)
+pipeline.process_criticality_transition(channel_idx=0)
 ```
 
-### File: `PROJECT_B_README.md`
-```markdown
-# Algorithmic Modeling of Morphogenetic Fields: Continuous Bioelectric Cellular Automata (CBCA)
+**Output:** a two-panel phase-space figure, one panel per state, with the HFD and entropy values in each title.
 
-## 1. Executive Research Summary
-This repository contains a high-performance **Continuous Bioelectric Cellular Automaton (CBCA)** written in Python. It provides a computational validation of developmental bioelectricity, specifically modeling the foundational paradigms established by Dr. Michael Levin [wyss.harvard.edu]. 
+## 5. Results on Synthetic Data
 
-Traditional computational biology models cellular morphology through genetic sequencing or localized chemical signaling pathways. This project implements an alternative paradigm: **treating tissue matrices as open, self-organizing computational networks governed by continuous membrane voltage gradients ($V_{mem}$) and gap-junction communication channels.**
+Channel 0, default settings, five runs with random seeds 0–4:
 
-The simulation demonstrates that a tissue matrix can store a robust anatomical memory and coordinate body-wide structural regeneration following severe physical trauma **without requiring modifications to the underlying genetic hardware.**
+| Metric | Stress model (20–30 Hz) | Coherence model (4–12 Hz) | Direction |
+| --- | --- | --- | --- |
+| Higuchi fractal dimension | 1.96–1.98 | 1.18 | Decreases, as hypothesized |
+| Shannon entropy (bits) | 4.21–4.56 | 4.63–4.75 | Increases |
 
-## 2. Mathematical & Algorithmic Foundations
+HFD separates the two states clearly. Amplitude-histogram entropy does not drop in the coherent state, for the reason described in [Section 2B](#b-shannon-entropy). Measures that account for temporal order, such as **sample entropy** or **permutation entropy** ([Bandt & Pompe, 2002](#references)), are better suited to detecting rhythmic regularity and are the planned replacement.
 
-### A. Intercellular Voltage Diffusion (The Discrete Laplacian)
-Communication between adjacent cellular nodes is modeled as an electrical diffusion process across a continuous 2D spatial grid. The slow-moving intercellular voltage gradient is calculated using a discrete numerical approximation of the 2D Laplacian operator across a standard 4-point localized stencil:
+## 6. Limitations and Next Steps
 
-$$\nabla^2 V_{mem} \approx V(x+1, y) + V(x-1, y) + V(x, y+1) + V(x, y-1) - 4V(x, y)$$
+- **Synthetic data shows the method works, not that the hypothesis is true.** The synthetic signal is built to contain a shift from noise to rhythm. Real recordings are needed for evidence.
+- **Different filters per state.** Each half is filtered to a different band, which affects the metrics on its own. A fair comparison would apply the same filters to both states.
+- **File formats.** Only EDF is supported. FIF support would need `mne.io.read_raw_fif`.
+- **Planned:** run on public datasets such as the [PhysioNet EEG Motor Movement/Imagery Dataset](https://physionet.org/content/eegmmidb/), add statistical testing across subjects, and compare against established measures such as detrended fluctuation analysis.
 
-The state updates are evaluated at each time increment ($\Delta t$) across the network graph via:
+## References
 
-$$V_{mem}^{t+1}(x, y) = V_{mem}^{t}(x, y) + D \cdot \nabla^2 V_{mem}^{t}(x, y)$$
+- Higuchi, T. (1988). Approach to an irregular time series on the basis of the fractal theory. *Physica D: Nonlinear Phenomena*, 31(2), 277–283.
+- Shannon, C. E. (1948). A mathematical theory of communication. *Bell System Technical Journal*, 27(3), 379–423.
+- Beggs, J. M., & Plenz, D. (2003). Neuronal avalanches in neocortical circuits. *Journal of Neuroscience*, 23(35), 11167–11177.
+- Bandt, C., & Pompe, B. (2002). Permutation entropy: a natural complexity measure for time series. *Physical Review Letters*, 88(17), 174102.
+- Gramfort, A., et al. (2013). MEG and EEG data analysis with MNE-Python. *Frontiers in Neuroscience*, 7, 267.
 
-Where $D$ represents the non-dimensional diffusion coefficient modeling the conductivity of intercellular **gap junctions**.
+## Related Projects
 
-### B. Bioelectric Error-Gradient Correction (Anatomical Memory Retrieval)
+- [bioelectric-morphogenetic-fields](https://github.com/abbykendrick/bioelectric-morphogenetic-fields): a bioelectric cellular automaton modeling tissue self-repair.
+- [spectral-network-synchrony](https://github.com/abbykendrick/spectral-network-synchrony): Kuramoto synchronization on random graphs.
+
+## Author
+
+Abby Kendrick · [GitHub](https://github.com/abbykendrick) · [LinkedIn](https://www.linkedin.com/in/abbykendrick)
